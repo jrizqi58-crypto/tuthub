@@ -1,0 +1,451 @@
+-- TERRAIN COPY - GUI VERSION (JSON Export + Minimize)
+-- Dengan progress bar, pause/resume, dan optimasi
+
+local player = game.Players.LocalPlayer
+local terrain = workspace.Terrain
+local HttpService = game:GetService("HttpService")
+
+-- Check support
+if not (writefile and isfolder and makefolder) then
+	warn("❌ Executor doesn't support file functions!")
+	return
+end
+
+-- Create folder
+local TERRAIN_FOLDER = "TerrainCopyTool"
+if not isfolder(TERRAIN_FOLDER) then
+	makefolder(TERRAIN_FOLDER)
+end
+
+-- Config
+local CHUNK_SIZE = 128
+local VOXEL_RESOLUTION = 4
+local SCAN_DELAY = 0.1
+
+-- Create GUI
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local MinimizeBtn = Instance.new("TextButton")
+local ContentFrame = Instance.new("Frame")
+local ProgressBar = Instance.new("Frame")
+local ProgressFill = Instance.new("Frame")
+local ProgressText = Instance.new("TextLabel")
+local StatusLabel = Instance.new("TextLabel")
+local StatsLabel = Instance.new("TextLabel")
+local StartBtn = Instance.new("TextButton")
+local PauseBtn = Instance.new("TextButton")
+local ExportBtn = Instance.new("TextButton")
+
+ScreenGui.Name = "TerrainCopyGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game.CoreGui
+
+-- Main Frame
+MainFrame.Size = UDim2.new(0, 400, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(100, 150, 255)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+-- Title Bar
+Title.Size = UDim2.new(1, -40, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+Title.BorderSizePixel = 0
+Title.Text = "🏔️ TERRAIN COPY (JSON)"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBold
+Title.Parent = MainFrame
+
+-- Minimize Button
+MinimizeBtn.Size = UDim2.new(0, 40, 0, 40)
+MinimizeBtn.Position = UDim2.new(1, -40, 0, 0)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MinimizeBtn.BorderSizePixel = 0
+MinimizeBtn.Text = "−"
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.TextSize = 24
+MinimizeBtn.Font = Enum.Font.GothamBold
+MinimizeBtn.Parent = MainFrame
+
+-- Content Frame (can be hidden)
+ContentFrame.Size = UDim2.new(1, 0, 1, -40)
+ContentFrame.Position = UDim2.new(0, 0, 0, 40)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainFrame
+
+-- Progress Bar Background
+ProgressBar.Size = UDim2.new(0, 360, 0, 30)
+ProgressBar.Position = UDim2.new(0, 20, 0, 10)
+ProgressBar.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+ProgressBar.BorderSizePixel = 0
+ProgressBar.Parent = ContentFrame
+
+-- Progress Bar Fill
+ProgressFill.Size = UDim2.new(0, 0, 1, 0)
+ProgressFill.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+ProgressFill.BorderSizePixel = 0
+ProgressFill.Parent = ProgressBar
+
+-- Progress Text
+ProgressText.Size = UDim2.new(1, 0, 1, 0)
+ProgressText.BackgroundTransparency = 1
+ProgressText.Text = "0%"
+ProgressText.TextColor3 = Color3.fromRGB(255, 255, 255)
+ProgressText.TextSize = 14
+ProgressText.Font = Enum.Font.GothamBold
+ProgressText.Parent = ProgressBar
+
+-- Status Label
+StatusLabel.Size = UDim2.new(0, 360, 0, 60)
+StatusLabel.Position = UDim2.new(0, 20, 0, 50)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Ready to scan!\nClick START to begin"
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusLabel.TextSize = 12
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextWrapped = true
+StatusLabel.TextYAlignment = Enum.TextYAlignment.Top
+StatusLabel.Parent = ContentFrame
+
+-- Stats Label
+StatsLabel.Size = UDim2.new(0, 360, 0, 60)
+StatsLabel.Position = UDim2.new(0, 20, 0, 115)
+StatsLabel.BackgroundTransparency = 1
+StatsLabel.Text = "Voxels: 0\nChunks: 0/0\nTime: 0s"
+StatsLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+StatsLabel.TextSize = 11
+StatsLabel.Font = Enum.Font.Gotham
+StatsLabel.TextWrapped = true
+StatsLabel.TextYAlignment = Enum.TextYAlignment.Top
+StatsLabel.Parent = ContentFrame
+
+-- Start Button
+StartBtn.Size = UDim2.new(0, 110, 0, 35)
+StartBtn.Position = UDim2.new(0, 20, 0, 185)
+StartBtn.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+StartBtn.BorderSizePixel = 0
+StartBtn.Text = "▶ START"
+StartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+StartBtn.TextSize = 14
+StartBtn.Font = Enum.Font.GothamBold
+StartBtn.Parent = ContentFrame
+
+-- Pause Button
+PauseBtn.Size = UDim2.new(0, 110, 0, 35)
+PauseBtn.Position = UDim2.new(0, 145, 0, 185)
+PauseBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 100)
+PauseBtn.BorderSizePixel = 0
+PauseBtn.Text = "⏸ PAUSE"
+PauseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PauseBtn.TextSize = 14
+PauseBtn.Font = Enum.Font.GothamBold
+PauseBtn.Parent = ContentFrame
+
+-- Export Button
+ExportBtn.Size = UDim2.new(0, 110, 0, 35)
+ExportBtn.Position = UDim2.new(0, 270, 0, 185)
+ExportBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 255)
+ExportBtn.BorderSizePixel = 0
+ExportBtn.Text = "💾 EXPORT"
+ExportBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ExportBtn.TextSize = 14
+ExportBtn.Font = Enum.Font.GothamBold
+ExportBtn.Parent = ContentFrame
+
+-- Scanning variables
+local isScanning = false
+local isPaused = false
+local isMinimized = false
+local allVoxelData = {}
+local totalVoxels = 0
+local materialCounts = {}
+local startTime = 0
+local chunks = {}
+local currentChunk = 1
+
+-- Minimize/Maximize function
+local function toggleMinimize()
+	isMinimized = not isMinimized
+	
+	if isMinimized then
+		MainFrame:TweenSize(
+			UDim2.new(0, 400, 0, 40),
+			Enum.EasingDirection.Out,
+			Enum.EasingStyle.Quad,
+			0.3,
+			true
+		)
+		MinimizeBtn.Text = "+"
+		ContentFrame.Visible = false
+	else
+		MainFrame:TweenSize(
+			UDim2.new(0, 400, 0, 300),
+			Enum.EasingDirection.Out,
+			Enum.EasingStyle.Quad,
+			0.3,
+			true
+		)
+		MinimizeBtn.Text = "−"
+		ContentFrame.Visible = true
+	end
+end
+
+-- Calculate chunks
+local function calculateChunks()
+	chunks = {}
+	
+	local success, result = pcall(function()
+		return terrain:MaxExtents()
+	end)
+	
+	local minPos, maxPos
+	if success and result and result.Size.Magnitude > 0 then
+		local center = result.CFrame.Position
+		local size = result.Size
+		minPos = center - size/2
+		maxPos = center + size/2
+	else
+		local pos = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			and player.Character.HumanoidRootPart.Position or Vector3.new(0, 50, 0)
+		minPos = pos - Vector3.new(1024, 256, 1024)
+		maxPos = pos + Vector3.new(1024, 256, 1024)
+	end
+	
+	local totalSize = maxPos - minPos
+	local chunksX = math.ceil(totalSize.X / CHUNK_SIZE)
+	local chunksY = math.ceil(totalSize.Y / CHUNK_SIZE)
+	local chunksZ = math.ceil(totalSize.Z / CHUNK_SIZE)
+	
+	for cx = 0, chunksX - 1 do
+		for cy = 0, chunksY - 1 do
+			for cz = 0, chunksZ - 1 do
+				local chunkMin = minPos + Vector3.new(
+					cx * CHUNK_SIZE,
+					cy * CHUNK_SIZE,
+					cz * CHUNK_SIZE
+				)
+				local chunkMax = Vector3.new(
+					math.min(chunkMin.X + CHUNK_SIZE, maxPos.X),
+					math.min(chunkMin.Y + CHUNK_SIZE, maxPos.Y),
+					math.min(chunkMin.Z + CHUNK_SIZE, maxPos.Z)
+				)
+				
+				table.insert(chunks, {min = chunkMin, max = chunkMax})
+			end
+		end
+	end
+	
+	return minPos, maxPos
+end
+
+-- Scan single chunk
+local function scanChunk(chunkData)
+	local region = Region3.new(chunkData.min, chunkData.max):ExpandToGrid(VOXEL_RESOLUTION)
+	
+	local success, materials = pcall(function()
+		return terrain:ReadVoxels(region, VOXEL_RESOLUTION)
+	end)
+	
+	if not success or not materials then
+		return 0
+	end
+	
+	local matSize = materials.Size
+	local chunkVoxels = 0
+	
+	for x = 1, matSize.X do
+		for y = 1, matSize.Y do
+			for z = 1, matSize.Z do
+				local mat = materials[x][y][z]
+				if mat ~= Enum.Material.Air then
+					local worldPos = chunkData.min + Vector3.new(
+						(x-1) * VOXEL_RESOLUTION,
+						(y-1) * VOXEL_RESOLUTION,
+						(z-1) * VOXEL_RESOLUTION
+					)
+					
+					table.insert(allVoxelData, {
+						x = worldPos.X,
+						y = worldPos.Y,
+						z = worldPos.Z,
+						material = tostring(mat)
+					})
+					
+					chunkVoxels = chunkVoxels + 1
+					totalVoxels = totalVoxels + 1
+					
+					local matName = tostring(mat)
+					materialCounts[matName] = (materialCounts[matName] or 0) + 1
+				end
+			end
+		end
+	end
+	
+	return chunkVoxels
+end
+
+-- Start scanning
+local function startScan()
+	if isScanning then return end
+	
+	isScanning = true
+	isPaused = false
+	startTime = tick()
+	
+	if currentChunk == 1 then
+		allVoxelData = {}
+		totalVoxels = 0
+		materialCounts = {}
+		
+		StatusLabel.Text = "Calculating chunks..."
+		wait(0.5)
+		
+		calculateChunks()
+		
+		StatusLabel.Text = string.format("Found %d chunks to scan\nStarting...", #chunks)
+	else
+		StatusLabel.Text = "Resuming scan..."
+	end
+	
+	spawn(function()
+		while currentChunk <= #chunks and isScanning do
+			if isPaused then
+				wait(0.1)
+				continue
+			end
+			
+			local voxels = scanChunk(chunks[currentChunk])
+			
+			local progress = currentChunk / #chunks
+			ProgressFill:TweenSize(
+				UDim2.new(progress, 0, 1, 0),
+				Enum.EasingDirection.Out,
+				Enum.EasingStyle.Quad,
+				0.1,
+				true
+			)
+			
+			ProgressText.Text = string.format("%.1f%%", progress * 100)
+			
+			local elapsed = tick() - startTime
+			local eta = (elapsed / currentChunk) * (#chunks - currentChunk)
+			
+			StatusLabel.Text = string.format("Scanning chunk %d/%d\nFound %d voxels in this chunk",
+				currentChunk, #chunks, voxels)
+			
+			StatsLabel.Text = string.format("Total Voxels: %d\nChunks: %d/%d\nTime: %.0fs | ETA: %.0fs",
+				totalVoxels, currentChunk, #chunks, elapsed, eta)
+			
+			currentChunk = currentChunk + 1
+			wait(SCAN_DELAY)
+		end
+		
+		if currentChunk > #chunks then
+			isScanning = false
+			StatusLabel.Text = string.format("✓ SCAN COMPLETE!\n%d voxels found\nClick EXPORT to save",
+				totalVoxels)
+			ProgressText.Text = "100%"
+			ExportBtn.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+		end
+	end)
+end
+
+-- Pause scanning
+local function pauseScan()
+	isPaused = not isPaused
+	if isPaused then
+		PauseBtn.Text = "▶ RESUME"
+		StatusLabel.Text = "⏸ PAUSED\nClick RESUME to continue"
+	else
+		PauseBtn.Text = "⏸ PAUSE"
+		StatusLabel.Text = "Resuming..."
+	end
+end
+
+-- Export to JSON
+local function exportData()
+	if totalVoxels == 0 then
+		StatusLabel.Text = "❌ No data to export!\nScan first"
+		return
+	end
+	
+	StatusLabel.Text = "📤 Exporting to JSON..."
+	wait(0.5)
+	
+	local timestamp = os.date("%Y%m%d_%H%M%S")
+	local filename = string.format("%s/Terrain_%s.json", TERRAIN_FOLDER, timestamp)
+	
+	-- Find bounds
+	local minPos = Vector3.new(allVoxelData[1].x, allVoxelData[1].y, allVoxelData[1].z)
+	local maxPos = Vector3.new(allVoxelData[1].x, allVoxelData[1].y, allVoxelData[1].z)
+	
+	for _, voxel in ipairs(allVoxelData) do
+		minPos = Vector3.new(
+			math.min(minPos.X, voxel.x),
+			math.min(minPos.Y, voxel.y),
+			math.min(minPos.Z, voxel.z)
+		)
+		maxPos = Vector3.new(
+			math.max(maxPos.X, voxel.x),
+			math.max(maxPos.Y, voxel.y),
+			math.max(maxPos.Z, voxel.z)
+		)
+	end
+	
+	local size = maxPos - minPos
+	
+	-- Create JSON data
+	local jsonData = {
+		metadata = {
+			generated = os.date("%Y-%m-%d %H:%M:%S"),
+			voxelCount = totalVoxels,
+			voxelResolution = VOXEL_RESOLUTION,
+			size = {
+				x = size.X,
+				y = size.Y,
+				z = size.Z
+			},
+			minPosition = {
+				x = minPos.X,
+				y = minPos.Y,
+				z = minPos.Z
+			},
+			materialCounts = materialCounts
+		},
+		voxels = allVoxelData
+	}
+	
+	-- Convert to JSON
+	local success, jsonString = pcall(function()
+		return HttpService:JSONEncode(jsonData)
+	end)
+	
+	if not success then
+		StatusLabel.Text = "❌ JSON encoding failed!"
+		return
+	end
+	
+	writefile(filename, jsonString)
+	
+	StatusLabel.Text = string.format("✅ EXPORTED!\nFile: Terrain_%s.json\n%.2f MB", 
+		timestamp, #jsonString/1024/1024)
+	
+	print("\n✅ JSON file saved:", filename)
+	print("📊 Total voxels:", totalVoxels)
+	print("📦 File size:", string.format("%.2f MB", #jsonString/1024/1024))
+end
+
+-- Button events
+StartBtn.MouseButton1Click:Connect(startScan)
+PauseBtn.MouseButton1Click:Connect(pauseScan)
+ExportBtn.MouseButton1Click:Connect(exportData)
+MinimizeBtn.MouseButton1Click:Connect(toggleMinimize)
+
+print("✓ Terrain Copy GUI loaded (JSON Export)!")
+print("Click START button to begin scanning")
+print("Click − to minimize GUI")
