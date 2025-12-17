@@ -1,0 +1,311 @@
+-- TELEPORT GUI + AUTO COMMANDS
+-- GUI untuk manual, Commands untuk auto
+
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Daftar lokasi teleport
+local locations = {
+	{name = "🏕️ BASECAMP", pos = Vector3.new(-335, 5, 27), color = Color3.fromRGB(100, 200, 100)},
+	{name = "📍 CHECKPOINT 1", pos = Vector3.new(-393, 425, 2179), color = Color3.fromRGB(150, 150, 255)},
+	{name = "📍 CHECKPOINT 2", pos = Vector3.new(-425, 849, 3144), color = Color3.fromRGB(150, 150, 255)},
+	{name = "📍 CHECKPOINT 3", pos = Vector3.new(-47, 1280, 4029), color = Color3.fromRGB(150, 150, 255)},
+	{name = "📍 CHECKPOINT 4", pos = Vector3.new(-1056, 1553, 4841), color = Color3.fromRGB(150, 150, 255)},
+	{name = "⛰️ SUMMIT", pos = Vector3.new(-953, 1921, 5418), color = Color3.fromRGB(255, 200, 100)}
+}
+
+-- AUTO VARIABLES
+local isAutoRunning = false
+local currentIndex = 1
+local autoDelay = 2.5
+
+-- Create GUI
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local CloseBtn = Instance.new("TextButton")
+local ScrollFrame = Instance.new("ScrollingFrame")
+local UIListLayout = Instance.new("UIListLayout")
+
+ScreenGui.Name = "TeleportGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game.CoreGui
+
+-- Main Frame
+MainFrame.Size = UDim2.new(0, 350, 0, 450)
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -225)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+MainFrame.BorderSizePixel = 3
+MainFrame.BorderColor3 = Color3.fromRGB(100, 150, 255)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+-- Add rounded corners
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 12)
+Corner.Parent = MainFrame
+
+-- Title Bar
+Title.Size = UDim2.new(1, -40, 0, 45)
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+Title.BorderSizePixel = 0
+Title.Text = "🗻 MOUNTAIN TELEPORTER"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBold
+Title.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.Parent = Title
+
+-- Close Button
+CloseBtn.Size = UDim2.new(0, 35, 0, 35)
+CloseBtn.Position = UDim2.new(1, -40, 0, 5)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Text = "✕"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 20
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = MainFrame
+
+local CloseBtnCorner = Instance.new("UICorner")
+CloseBtnCorner.CornerRadius = UDim.new(0, 8)
+CloseBtnCorner.Parent = CloseBtn
+
+-- Scroll Frame for buttons
+ScrollFrame.Size = UDim2.new(1, -20, 1, -60)
+ScrollFrame.Position = UDim2.new(0, 10, 0, 50)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.BorderSizePixel = 0
+ScrollFrame.ScrollBarThickness = 6
+ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 150, 255)
+ScrollFrame.Parent = MainFrame
+
+-- Layout for buttons
+UIListLayout.Padding = UDim.new(0, 10)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Parent = ScrollFrame
+
+-- Teleport function
+local function teleport(position)
+	if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+		warn("❌ Character not found!")
+		return false
+	end
+	
+	local hrp = player.Character.HumanoidRootPart
+	hrp.CFrame = CFrame.new(position)
+	print("✅ Teleported to:", position)
+	return true
+end
+
+-- Notification function
+local function notify(text)
+	game.StarterGui:SetCore("SendNotification", {
+		Title = "Auto Teleport",
+		Text = text,
+		Duration = 3
+	})
+end
+
+-- Create teleport buttons
+for i, location in ipairs(locations) do
+	local Button = Instance.new("TextButton")
+	local ButtonCorner = Instance.new("UICorner")
+	local InfoLabel = Instance.new("TextLabel")
+	
+	-- Button setup
+	Button.Size = UDim2.new(1, -10, 0, 70)
+	Button.BackgroundColor3 = location.color
+	Button.BorderSizePixel = 0
+	Button.AutoButtonColor = false
+	Button.Text = ""
+	Button.Parent = ScrollFrame
+	
+	ButtonCorner.CornerRadius = UDim.new(0, 10)
+	ButtonCorner.Parent = Button
+	
+	-- Button title
+	local ButtonTitle = Instance.new("TextLabel")
+	ButtonTitle.Size = UDim2.new(1, -10, 0, 25)
+	ButtonTitle.Position = UDim2.new(0, 5, 0, 5)
+	ButtonTitle.BackgroundTransparency = 1
+	ButtonTitle.Text = location.name
+	ButtonTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+	ButtonTitle.TextSize = 16
+	ButtonTitle.Font = Enum.Font.GothamBold
+	ButtonTitle.TextXAlignment = Enum.TextXAlignment.Left
+	ButtonTitle.Parent = Button
+	
+	-- Position info
+	InfoLabel.Size = UDim2.new(1, -10, 0, 35)
+	InfoLabel.Position = UDim2.new(0, 5, 0, 30)
+	InfoLabel.BackgroundTransparency = 1
+	InfoLabel.Text = string.format("X: %.0f  Y: %.0f  Z: %.0f", 
+		location.pos.X, location.pos.Y, location.pos.Z)
+	InfoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	InfoLabel.TextSize = 12
+	InfoLabel.Font = Enum.Font.Gotham
+	InfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+	InfoLabel.TextTransparency = 0.3
+	InfoLabel.Parent = Button
+	
+	-- Hover effect
+	Button.MouseEnter:Connect(function()
+		Button.BackgroundColor3 = Color3.new(
+			math.min(location.color.R * 1.2, 1),
+			math.min(location.color.G * 1.2, 1),
+			math.min(location.color.B * 1.2, 1)
+		)
+	end)
+	
+	Button.MouseLeave:Connect(function()
+		Button.BackgroundColor3 = location.color
+	end)
+	
+	-- Teleport on click
+	Button.MouseButton1Click:Connect(function()
+		teleport(location.pos)
+		
+		-- Visual feedback
+		Button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		wait(0.1)
+		Button.BackgroundColor3 = location.color
+	end)
+end
+
+-- Update canvas size
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 10)
+UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 10)
+end)
+
+-- Close button function
+CloseBtn.MouseButton1Click:Connect(function()
+	_G.StopAuto()
+	ScreenGui:Destroy()
+	print("✓ Teleport GUI closed")
+end)
+
+-- Minimize/Maximize functionality
+local isMinimized = false
+Title.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		local clickCount = 0
+		clickCount = clickCount + 1
+		
+		wait(0.3)
+		if clickCount == 2 then
+			isMinimized = not isMinimized
+			if isMinimized then
+				MainFrame:TweenSize(UDim2.new(0, 350, 0, 45), "Out", "Quad", 0.3, true)
+				ScrollFrame.Visible = false
+			else
+				MainFrame:TweenSize(UDim2.new(0, 350, 0, 450), "Out", "Quad", 0.3, true)
+				ScrollFrame.Visible = true
+			end
+		end
+	end
+end)
+
+-- Character respawn handler
+player.CharacterAdded:Connect(function(char)
+	character = char
+	humanoidRootPart = char:WaitForChild("HumanoidRootPart")
+end)
+
+-- ========================================
+-- AUTO TELEPORT COMMANDS
+-- ========================================
+
+-- Start Auto Function
+_G.StartAuto = function(delay)
+	if isAutoRunning then
+		notify("Auto already running!")
+		return
+	end
+	
+	autoDelay = delay or 2.5
+	isAutoRunning = true
+	currentIndex = 1
+	
+	notify("✅ AUTO STARTED! (" .. autoDelay .. "s delay)")
+	print("▶ AUTO MODE: STARTED with " .. autoDelay .. "s delay")
+	
+	spawn(function()
+		while isAutoRunning do
+			local loc = locations[currentIndex]
+			
+			-- Teleport
+			if teleport(loc.pos) then
+				notify("→ " .. loc.name)
+			else
+				notify("ERROR: Character not found!")
+				wait(1)
+			end
+			
+			-- Wait delay
+			wait(autoDelay)
+			
+			-- Next location
+			currentIndex = currentIndex % #locations + 1
+			
+			-- Loop notification
+			if currentIndex == 1 then
+				notify("🔄 Loop complete! Restarting...")
+				wait(1)
+			end
+		end
+	end)
+end
+
+-- Stop Auto Function
+_G.StopAuto = function()
+	if not isAutoRunning then
+		notify("Auto is not running!")
+		return
+	end
+	
+	isAutoRunning = false
+	notify("⏹ AUTO STOPPED")
+	print("⏹ AUTO MODE: STOPPED")
+end
+
+-- Change Delay Function
+_G.ChangeDelay = function(newDelay)
+	autoDelay = newDelay or 2.5
+	notify("Delay changed to " .. autoDelay .. "s")
+	print("⏱️ Delay changed to " .. autoDelay .. " seconds")
+end
+
+-- Status Function
+_G.AutoStatus = function()
+	if isAutoRunning then
+		local loc = locations[currentIndex]
+		notify("RUNNING - Next: " .. loc.name)
+		print("Status: RUNNING | Next: " .. loc.name .. " | Delay: " .. autoDelay .. "s")
+	else
+		notify("AUTO IS STOPPED")
+		print("Status: STOPPED")
+	end
+end
+
+print("✅ Teleport GUI Loaded!")
+print("🗻 6 locations available")
+print("📌 Drag to move, Click buttons to teleport")
+print("")
+print("========================================")
+print("🤖 AUTO MODE COMMANDS:")
+print("========================================")
+print("_G.StartAuto(2.5)    -- Start auto (2.5s delay)")
+print("_G.StopAuto()        -- Stop auto")
+print("_G.ChangeDelay(3)    -- Change delay to 3s")
+print("_G.AutoStatus()      -- Check status")
+print("========================================")
+print("Example: _G.StartAuto(3)")
+print("========================================")
